@@ -22,11 +22,20 @@
 #include <errno.h>
 #include <string.h>
 #include <stdlib.h>
+#include <execinfo.h>
 
 #include "exit_codes.h"
 
 void wimps_sigprof_handler() {
     printf("WIMPS | INF | SIGPROF handler called\n");
+
+    void* trace[1000] = { NULL };
+    const size_t size = sizeof(trace) / sizeof(trace[0]);
+    backtrace(&trace[0], size);
+
+    for(size_t i = 0; trace[i] != NULL && i < size; ++i) {
+        printf("WIMPS | INF | %p\n", trace[i]);
+    }
 }
 
 void wimps_print_errno() {
