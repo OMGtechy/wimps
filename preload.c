@@ -31,11 +31,15 @@ void wimps_sigprof_handler() {
 
     void* trace[1000] = { NULL };
     const size_t size = sizeof(trace) / sizeof(trace[0]);
-    backtrace(&trace[0], size);
+    const int addressCount = backtrace(&trace[0], size);
+
+    const char** symbolNames = (const char**) backtrace_symbols(trace, addressCount);
 
     for(size_t i = 0; trace[i] != NULL && i < size; ++i) {
-        printf("WIMPS | INF | %p\n", trace[i]);
+        printf("WIMPS | INF | Frame[%lu]: %s\n", i, symbolNames[i]);
     }
+
+    free(symbolNames);
 }
 
 void wimps_print_errno() {
