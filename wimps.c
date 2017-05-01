@@ -150,7 +150,7 @@ int main(int argc, char** argv) {
 
     switch(pid) {
     case -1:
-        fprintf(stderr, "WIMPS | ERROR | Could not create initial child process\n");
+        fprintf(stderr, "WIMPS | ERR | Could not create initial child process\n");
         return WIMPS_FORK_FAILED;
     case 0:
         return child(argv + 1);
