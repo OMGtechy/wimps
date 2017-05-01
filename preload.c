@@ -26,6 +26,9 @@
 
 #include "exit_codes.h"
 
+// Signal handlers should be async signal safe,
+// but this isn't! If you get some kind of weird deadlock
+// inside a function call, that's probably why.
 void wimps_sigprof_handler() {
     printf("WIMPS | INF | SIGPROF handler called\n");
 
