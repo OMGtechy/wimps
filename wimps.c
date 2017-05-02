@@ -136,6 +136,7 @@ enum ExitCode child(char** argv) {
     execve(argv[0], argv, env);
 
     // we will only get here if the exec failed
+    free(env);
     fprintf(stderr, "WIMPS | ERR | Could not exec into target program\n");
     return WIMPS_EXEC_FAILED;
 }
