@@ -24,6 +24,7 @@
 #include <stdlib.h>
 #include <execinfo.h>
 #include <stdbool.h>
+#include <stdarg.h>
 
 #include "exit_codes.h"
 
@@ -59,13 +60,45 @@ void wimps_sigprof_handler() {
     wimps_write(0, trace, addressCount * elementSize);
 }
 
-void wimps_print_errno() {
-    fprintf(stderr, "WIMPS | ERR | errno: %d (%s)\n", errno, strerror(errno));
-}
-
 void wimps_force_libgcc_load() {
     void* dummy;
     backtrace(&dummy, 1);
+}
+
+bool wimps_set_signal_handler(void (*handler)()) {
+    return signal(SIGPROF, handler) != SIG_ERR;
+}
+
+bool wimps_create_timer(timer_t* const outTimer) {
+    struct sigevent signalEvent;
+    signalEvent.sigev_notify = SIGEV_SIGNAL;
+    signalEvent.sigev_signo = SIGPROF;
+
+    return timer_create(CLOCK_MONOTONIC, &signalEvent, outTimer) == 0;
+}
+
+bool wimps_start_timer(timer_t timer) {
+    struct itimerspec timerSpec;
+
+    timerSpec.it_interval.tv_sec = 1;
+    timerSpec.it_interval.tv_nsec = 0;
+    timerSpec.it_value = timerSpec.it_interval;
+
+    return timer_settime(timer, 0, &timerSpec, NULL) == 0;
+}
+
+// TODO: this should probably be refactored out of this file
+__attribute__((noreturn))
+void wimps_report_fatal_error(int exitCode, const char* const format, ...) {
+    fprintf(stderr, "WIMPS | ERR | errno: %d (%s)\n", errno, strerror(errno));
+
+    va_list args;
+    va_start(args, format);
+    vfprintf(stderr, format, args);
+    va_end(args);
+
+    fprintf(stderr, "WIMPS | ERR | exiting with code %d\n", exitCode);
+    exit(exitCode);
 }
 
 __attribute__((constructor))
@@ -73,51 +106,17 @@ void wimps_setup() {
     // see wimps_sigprof_handler for why this is needed
     wimps_force_libgcc_load();
 
-    {
-        const void* const ret = signal(SIGPROF, &wimps_sigprof_handler);
-
-        if(ret == SIG_ERR) {
-            fprintf(stderr, "WIMPS | ERR | Could not set signal handler\n");
-            exit(WIMPS_SIGNAL_FAILED);
-        }
-
-        printf("WIMPS | INF | Signal handler set\n");
+    if(! wimps_set_signal_handler(&wimps_sigprof_handler)) {
+        wimps_report_fatal_error(WIMPS_SIGNAL_FAILED, "WIMPS | ERR | Could not set signal handler\n");
     }
 
-    struct sigevent signalEvent;
-    signalEvent.sigev_notify = SIGEV_SIGNAL;
-    signalEvent.sigev_signo = SIGPROF;
-
-    static timer_t timerID;
-
-    {
-        const int ret = timer_create(CLOCK_MONOTONIC, &signalEvent, &timerID);
-
-        if(ret != 0) {
-            fprintf(stderr, "WIMPS | ERR | Could not create timer\n");
-            wimps_print_errno();
-            exit(WIMPS_TIMER_CREATE_FAILED);
-        }
-
-        printf("WIMPS | INF | Timer created\n");
+    timer_t timer;
+    if(! wimps_create_timer(&timer)) {
+        wimps_report_fatal_error(WIMPS_TIMER_CREATE_FAILED, "WIMPS | ERR | errno: %d (%s)\n", errno, strerror(errno));
     }
 
-    struct itimerspec timerSpec;
-
-    timerSpec.it_interval.tv_sec = 1;
-    timerSpec.it_interval.tv_nsec = 0;
-    timerSpec.it_value = timerSpec.it_interval;
-
-    {
-        const int ret = timer_settime(timerID, 0, &timerSpec, NULL);
-
-        if(ret != 0) {
-            fprintf(stderr, "WIMPS | ERR | Could not start timer\n");
-            wimps_print_errno();
-            exit(WIMPS_TIMER_SET_TIME_FAILED);
-        }
-
-        printf("WIMPS | INF | Timer started\n");
+    if(! wimps_start_timer(timer)) {
+        wimps_report_fatal_error(WIMPS_TIMER_SET_TIME_FAILED, "WIMPS | ERR | Could not start timer\n");
     }
 }
 
