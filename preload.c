@@ -23,34 +23,56 @@
 #include <string.h>
 #include <stdlib.h>
 #include <execinfo.h>
+#include <stdbool.h>
 
 #include "exit_codes.h"
 
-// Signal handlers should be async signal safe,
-// but this isn't! If you get some kind of weird deadlock
-// inside a function call, that's probably why.
-void wimps_sigprof_handler() {
-    printf("WIMPS | INF | SIGPROF handler called\n");
+bool wimps_write(int fd, const void* buffer, ssize_t size) {
+    while(size > 0) {
+        ssize_t written = write(fd, buffer, size);
 
-    void* trace[1000] = { NULL };
-    const size_t size = sizeof(trace) / sizeof(trace[0]);
-    const int addressCount = backtrace(&trace[0], size);
+        if(written == -1) {
+            // something went wrong,
+            // but don't close the file as the
+            // caller might want something different
+            return false;
+        }
 
-    const char** symbolNames = (const char**) backtrace_symbols(trace, addressCount);
-
-    for(size_t i = 0; trace[i] != NULL && i < size; ++i) {
-        printf("WIMPS | INF | Frame[%lu]: %s\n", i, symbolNames[i]);
+        buffer += written;
+        size -= written;
     }
 
-    free(symbolNames);
+    return true;
+}
+
+void wimps_sigprof_handler() {
+    void* trace[1000] = { NULL };
+    const size_t elementSize = sizeof(trace[0]);
+    const size_t size = sizeof(trace) / elementSize;
+
+    // According to http://man7.org/linux/man-pages/man3/backtrace.3.html,
+    // backtrace is safe to call from a signal hander, but loading libgcc (where it lives) isn't.
+    // To get around this, we force the library to load in wimps_setup, which runs before this.
+    const int addressCount = backtrace(&trace[0], size);
+
+    // TODO: write out to a file, it's meaningless on stdout...
+    wimps_write(0, trace, addressCount * elementSize);
 }
 
 void wimps_print_errno() {
     fprintf(stderr, "WIMPS | ERR | errno: %d (%s)\n", errno, strerror(errno));
 }
 
+void wimps_force_libgcc_load() {
+    void* dummy;
+    backtrace(&dummy, 1);
+}
+
 __attribute__((constructor))
 void wimps_setup() {
+    // see wimps_sigprof_handler for why this is needed
+    wimps_force_libgcc_load();
+
     {
         const void* const ret = signal(SIGPROF, &wimps_sigprof_handler);
 
