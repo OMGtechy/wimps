@@ -120,7 +120,7 @@ void wimps_sigprof_handler() {
           && wimps_write(wimps_trace_fd, &addressesSize, sizeof(addressesSize))
           && wimps_write(wimps_trace_fd, "c", 1)
           && wimps_write(wimps_trace_fd, trace, addressesSize)
-          && wimps_write(wimps_trace_fd, "\n", 1))) {
+          && wimps_write(wimps_trace_fd, "d", 1))) {
         const char* const failedWriteMessage = "WIMPS | ERR | Could not write to trace file";
         wimps_write(STDERR_FILENO, failedWriteMessage, strlen(failedWriteMessage));
         goto wimps_sigprof_exit_handler;
