@@ -66,7 +66,7 @@ void wimps_sigprof_handler() {
 
     // TODO: what to do if this fails?
     //       writing an error message isn't enough...and might also fail
-    if(! wimps_write(wimps_trace_fd, trace, addressCount * elementSize)) {
+    if(! (wimps_write(wimps_trace_fd, trace, addressCount * elementSize) && wimps_write(wimps_trace_fd, "\n", 1))) {
         const char* const failedWriteMessage = "WIMPS | ERR | Could not write to trace file";
         wimps_write(STDERR_FILENO, failedWriteMessage, strlen(failedWriteMessage));
     }
