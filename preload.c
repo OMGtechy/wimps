@@ -111,7 +111,7 @@ void wimps_sigprof_handler() {
         goto wimps_sigprof_exit_handler;
     }
 
-    // the hardcoded characters don't convey any data (since they could be value address bytes),
+    // the hardcoded characters don't convey any data (since they could be valid address bytes),
     // but they do allow for some data corruption cases to be caught, since we know what the next
     // byte should be after the addresses size, for example.
     if(! (   wimps_write(wimps_trace_fd, "a", 1)
