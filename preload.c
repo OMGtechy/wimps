@@ -27,8 +27,12 @@
 #include <stdarg.h>
 #include <fcntl.h>
 #include <linux/limits.h>
+#include <stdatomic.h>
 
 #include "exit_codes.h"
+
+// use to prevent multiple samples getting written at the same time
+atomic_flag wimps_sigprof_active = ATOMIC_FLAG_INIT;
 
 // should be set by wimps_setup
 int wimps_trace_fd;
@@ -55,6 +59,11 @@ bool wimps_write(int fd, const void* buffer, ssize_t size) {
 }
 
 void wimps_sigprof_handler() {
+    if(atomic_flag_test_and_set(&wimps_sigprof_active)) {
+        // there's a handler running already; drop the sample
+        return;
+    }
+
     void* trace[1000] = { NULL };
     const size_t elementSize = sizeof(trace[0]);
     const size_t size = sizeof(trace) / elementSize;
@@ -70,6 +79,8 @@ void wimps_sigprof_handler() {
         const char* const failedWriteMessage = "WIMPS | ERR | Could not write to trace file";
         wimps_write(STDERR_FILENO, failedWriteMessage, strlen(failedWriteMessage));
     }
+
+    atomic_flag_clear(&wimps_sigprof_active);
 }
 
 void wimps_force_libgcc_load() {
