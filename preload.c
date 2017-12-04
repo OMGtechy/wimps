@@ -28,11 +28,14 @@
 #include <fcntl.h>
 #include <linux/limits.h>
 #include <stdatomic.h>
+#include <stdint.h>
 
 #include "exit_codes.h"
 
 // use to prevent multiple samples getting written at the same time
 atomic_flag wimps_sigprof_active = ATOMIC_FLAG_INIT;
+
+// used to keep track of sample time
 
 // should be set by wimps_setup
 int wimps_trace_fd;
@@ -58,6 +61,29 @@ bool wimps_write(int fd, const void* buffer, ssize_t size) {
     return true;
 }
 
+// If the original typedef is anything other than the type specified,
+// this'll cause a compile time error...
+//
+// Think of it as a hacky type equality assertion
+typedef int64_t time_t;
+typedef long int64_t;
+
+typedef struct _wimps_timespec {
+    int64_t seconds;
+    int64_t nanoseconds;
+} wimps_timespec;
+
+int wimps_get_timespec(wimps_timespec* const out) {
+    struct timespec result;
+    const int ret = clock_gettime(CLOCK_MONOTONIC, &result);
+
+    // we assume the out parameter is not null
+    out->seconds = result.tv_sec;
+    out->nanoseconds = result.tv_nsec;
+
+    return ret;
+}
+
 void wimps_sigprof_handler() {
     if(atomic_flag_test_and_set(&wimps_sigprof_active)) {
         // there's a handler running already; drop the sample
@@ -72,14 +98,35 @@ void wimps_sigprof_handler() {
     // backtrace is safe to call from a signal hander, but loading libgcc (where it lives) isn't.
     // To get around this, we force the library to load in wimps_setup, which runs before this.
     const int addressCount = backtrace(&trace[0], size);
+    const size_t addressesSize = addressCount * elementSize;
 
-    // TODO: what to do if this fails?
-    //       writing an error message isn't enough...and might also fail
-    if(! (wimps_write(wimps_trace_fd, trace, addressCount * elementSize) && wimps_write(wimps_trace_fd, "\n", 1))) {
-        const char* const failedWriteMessage = "WIMPS | ERR | Could not write to trace file";
-        wimps_write(STDERR_FILENO, failedWriteMessage, strlen(failedWriteMessage));
+    // if this isn't the case, some kind of header will be needed
+    _Static_assert(sizeof(addressesSize) == (64 / 8), "Unexpected sizeof(size_t)");
+
+    wimps_timespec currentTime = { 0, 0 };
+
+    if(wimps_get_timespec(&currentTime) == -1) {
+        const char* const failedGetTimespecMessage = "WIMPS | ERR | Could not get timespec";
+        wimps_write(STDERR_FILENO, failedGetTimespecMessage, strlen(failedGetTimespecMessage));
+        goto wimps_sigprof_exit_handler;
     }
 
+    // the hardcoded characters don't convey any data (since they could be value address bytes),
+    // but they do allow for some data corruption cases to be caught, since we know what the next
+    // byte should be after the addresses size, for example.
+    if(! (   wimps_write(wimps_trace_fd, "a", 1)
+          && wimps_write(wimps_trace_fd, &currentTime, sizeof(currentTime))
+          && wimps_write(wimps_trace_fd, "b", 1)
+          && wimps_write(wimps_trace_fd, &addressesSize, sizeof(addressesSize))
+          && wimps_write(wimps_trace_fd, "c", 1)
+          && wimps_write(wimps_trace_fd, trace, addressesSize)
+          && wimps_write(wimps_trace_fd, "\n", 1))) {
+        const char* const failedWriteMessage = "WIMPS | ERR | Could not write to trace file";
+        wimps_write(STDERR_FILENO, failedWriteMessage, strlen(failedWriteMessage));
+        goto wimps_sigprof_exit_handler;
+    }
+
+wimps_sigprof_exit_handler:
     atomic_flag_clear(&wimps_sigprof_active);
 }
 
