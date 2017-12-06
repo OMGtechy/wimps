@@ -35,8 +35,6 @@
 // use to prevent multiple samples getting written at the same time
 atomic_flag wimps_sigprof_active = ATOMIC_FLAG_INIT;
 
-// used to keep track of sample time
-
 // should be set by wimps_setup
 int wimps_trace_fd;
 
