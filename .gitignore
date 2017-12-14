@@ -1,4 +1,5 @@
 libpreload.so
 wimps-trace
+wimps-read
 *.swp
 _wimps_trace*
