@@ -25,7 +25,7 @@
 #include <signal.h>
 #include <linux/limits.h>
 
-#include "exit_codes.h"
+#include "error_codes.h"
 
 extern char** environ;
 
@@ -35,7 +35,7 @@ void sigint_handler() {
     kill(child_pid, SIGINT);
 }
 
-enum ExitCode parent(pid_t child) {
+enum ErrorCode parent(pid_t child) {
     child_pid = child;
     signal(SIGINT, &sigint_handler);
 
@@ -46,13 +46,13 @@ enum ExitCode parent(pid_t child) {
 
         if(WIFEXITED(status)) {
             printf("WIMPS | INF | Child process exited normally\n");
-            return WIMPS_SUCCESS;
+            return WIMPS_ERROR_NONE;
         }
 
         if(WIFSIGNALED(status)) {
             int signalNumber = WTERMSIG(status);
             printf("WIMPS | INF | Child process killed by signal %d (%s)\n", signalNumber, strsignal(signalNumber));
-            return WIMPS_SUCCESS;
+            return WIMPS_ERROR_NONE;
         }
 
         if(WIFSTOPPED(status)) {
@@ -78,16 +78,16 @@ enum ExitCode parent(pid_t child) {
             printf("WIMPS | INF | Continuing child process\n");
             if(ptrace(PTRACE_CONT, child, 0, signalToSend) == -1) {
                 fprintf(stderr, "WIMPS | ERR | Failed to continue child process\n");
-                return WIMPS_PTRACE_FAILED;
+                return WIMPS_ERROR_PTRACE_FAILED;
             }
         }
     }
 }
 
-enum ExitCode child(char** argv) {
+enum ErrorCode child(char** argv) {
     if(ptrace(PTRACE_TRACEME) == -1) {
         fprintf(stderr, "WIMPS | ERR | Could not execute PTRACE_TRACEME\n");
-        return WIMPS_PTRACE_FAILED;
+        return WIMPS_ERROR_PTRACE_FAILED;
     }
 
     size_t env_size = 0;
@@ -112,7 +112,7 @@ enum ExitCode child(char** argv) {
     const size_t ldPreloadLength = strlen(path);
     if(getcwd(&path[ldPreloadLength], PATH_MAX - ldPreloadLength - 1) == NULL) {
         printf("WIMPS | ERR | Could not get current working directory\n");
-        return WIMPS_GETCWD_FAILED;
+        return WIMPS_ERROR_GETCWD_FAILED;
     }
 
     strcat(path, "/libpreload.so");
@@ -122,7 +122,7 @@ enum ExitCode child(char** argv) {
 
     if(env == NULL) {
         fprintf(stderr, "WIMPS | ERR | Could not malloc environment for exec\n");
-        return WIMPS_MALLOC_FAILED;
+        return WIMPS_ERROR_MALLOC_FAILED;
     }
 
     printf("WIMPS | INF | Executing %s", argv[0]);
@@ -138,13 +138,13 @@ enum ExitCode child(char** argv) {
     // we will only get here if the exec failed
     free(env);
     fprintf(stderr, "WIMPS | ERR | Could not exec into target program\n");
-    return WIMPS_EXEC_FAILED;
+    return WIMPS_ERROR_EXEC_FAILED;
 }
 
 int main(int argc, char** argv) {
     if(argv[1] == NULL) {
         fprintf(stderr, "WIMPS | ERR | Please pass the program you want to run\n");
-        return WIMPS_NO_ARGS;
+        return WIMPS_ERROR_NO_ARGS;
     }
 
     const pid_t pid = fork();
@@ -152,7 +152,7 @@ int main(int argc, char** argv) {
     switch(pid) {
     case -1:
         fprintf(stderr, "WIMPS | ERR | Could not create initial child process\n");
-        return WIMPS_FORK_FAILED;
+        return WIMPS_ERROR_FORK_FAILED;
     case 0:
         return child(argv + 1);
     default:

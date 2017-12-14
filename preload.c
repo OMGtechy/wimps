@@ -30,7 +30,7 @@
 #include <stdatomic.h>
 #include <stdint.h>
 
-#include "exit_codes.h"
+#include "error_codes.h"
 
 // use to prevent multiple samples getting written at the same time
 atomic_flag wimps_sigprof_active = ATOMIC_FLAG_INIT;
@@ -211,20 +211,20 @@ void wimps_setup() {
 
     wimps_trace_fd = wimps_create_trace_file();
     if(wimps_trace_fd == -1) {
-        wimps_report_fatal_error(WIMPS_CREATE_TRACE_FILE_FAILED, "WIMPS | ERR | Could not create trace file\n");
+        wimps_report_fatal_error(WIMPS_ERROR_CREATE_TRACE_FILE_FAILED, "WIMPS | ERR | Could not create trace file\n");
     }
 
     if(! wimps_set_signal_handler(&wimps_sigprof_handler)) {
-        wimps_report_fatal_error(WIMPS_SIGNAL_FAILED, "WIMPS | ERR | Could not set signal handler\n");
+        wimps_report_fatal_error(WIMPS_ERROR_SIGNAL_FAILED, "WIMPS | ERR | Could not set signal handler\n");
     }
 
     timer_t timer;
     if(! wimps_create_timer(&timer)) {
-        wimps_report_fatal_error(WIMPS_TIMER_CREATE_FAILED, "WIMPS | ERR | errno: %d (%s)\n", errno, strerror(errno));
+        wimps_report_fatal_error(WIMPS_ERROR_TIMER_CREATE_FAILED, "WIMPS | ERR | errno: %d (%s)\n", errno, strerror(errno));
     }
 
     if(! wimps_start_timer(timer)) {
-        wimps_report_fatal_error(WIMPS_TIMER_SET_TIME_FAILED, "WIMPS | ERR | Could not start timer\n");
+        wimps_report_fatal_error(WIMPS_ERROR_TIMER_SET_TIME_FAILED, "WIMPS | ERR | Could not start timer\n");
     }
 }
 
