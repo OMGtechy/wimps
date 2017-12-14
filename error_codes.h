@@ -17,7 +17,7 @@
 
 #pragma once
 
-enum ErrorCode {
+typedef enum _ErrorCode {
     WIMPS_ERROR_NONE = 0,
     WIMPS_ERROR_FORK_FAILED,
     WIMPS_ERROR_PTRACE_FAILED,
@@ -29,5 +29,5 @@ enum ErrorCode {
     WIMPS_ERROR_TIMER_SET_TIME_FAILED,
     WIMPS_ERROR_NO_ARGS,
     WIMPS_ERROR_CREATE_TRACE_FILE_FAILED
-};
+} ErrorCode;
 

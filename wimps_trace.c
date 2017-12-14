@@ -35,7 +35,7 @@ void sigint_handler() {
     kill(child_pid, SIGINT);
 }
 
-enum ErrorCode parent(pid_t child) {
+ErrorCode parent(pid_t child) {
     child_pid = child;
     signal(SIGINT, &sigint_handler);
 
@@ -84,7 +84,7 @@ enum ErrorCode parent(pid_t child) {
     }
 }
 
-enum ErrorCode child(char** argv) {
+ErrorCode child(char** argv) {
     if(ptrace(PTRACE_TRACEME) == -1) {
         fprintf(stderr, "WIMPS | ERR | Could not execute PTRACE_TRACEME\n");
         return WIMPS_ERROR_PTRACE_FAILED;
