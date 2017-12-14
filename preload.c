@@ -43,7 +43,7 @@ extern const char* program_invocation_short_name;
 
 bool wimps_write(int fd, const void* buffer, ssize_t size) {
     while(size > 0) {
-        ssize_t written = write(fd, buffer, size);
+        const ssize_t written = write(fd, buffer, size);
 
         if(written == -1) {
             // something went wrong,
