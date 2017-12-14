@@ -28,9 +28,9 @@
 #include <fcntl.h>
 #include <linux/limits.h>
 #include <stdatomic.h>
-#include <stdint.h>
 
 #include "error_codes.h"
+#include "wimps_read.h"
 
 // use to prevent multiple samples getting written at the same time
 atomic_flag wimps_sigprof_active = ATOMIC_FLAG_INIT;
@@ -58,18 +58,6 @@ bool wimps_write(int fd, const void* buffer, ssize_t size) {
 
     return true;
 }
-
-// If the original typedef is anything other than the type specified,
-// this'll cause a compile time error...
-//
-// Think of it as a hacky type equality assertion
-typedef int64_t time_t;
-typedef long int64_t;
-
-typedef struct _wimps_timespec {
-    int64_t seconds;
-    int64_t nanoseconds;
-} wimps_timespec;
 
 int wimps_get_timespec(wimps_timespec* const out) {
     struct timespec result;
@@ -159,7 +147,7 @@ int wimps_create_trace_file() {
     const int badFd = -1;
 
     char buffer[PATH_MAX] = { '\0' };
-    snprintf(buffer, PATH_MAX, "_wimps_trace_v1_pid%d_time%.f_%s_", getpid(), difftime(time(NULL), (time_t) 0), program_invocation_short_name);
+    snprintf(buffer, PATH_MAX, "%s_pid%d_time%.f_%s_", wimps_trace_marker_v1, getpid(), difftime(time(NULL), (time_t) 0), program_invocation_short_name);
 
     const int flags = O_WRONLY // write only access
                     | O_APPEND // append on write
