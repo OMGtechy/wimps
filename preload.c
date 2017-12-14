@@ -180,7 +180,7 @@ int wimps_create_trace_file() {
 
 // TODO: this should probably be refactored out of this file
 __attribute__((noreturn))
-void wimps_report_fatal_error(const int exitCode, const char* const format, ...) {
+void wimps_report_fatal_error(const ErrorCode exitCode, const char* const format, ...) {
     fprintf(stderr, "WIMPS | ERR | errno: %d (%s)\n", errno, strerror(errno));
 
     va_list args;
