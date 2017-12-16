@@ -23,27 +23,51 @@
 #include <stdio.h>
 #include <fcntl.h>
 #include <string.h>
+#include <stdlib.h>
 
-bool wimps_read(const int fd, void* out, ssize_t bytes) {
+ErrorCode wimps_read(const int fd, void* out, ssize_t bytes) {
     while(bytes > 0) {
         const ssize_t readBytes = read(fd, out, bytes);
 
         if(readBytes == -1) {
             // something went wrong!
-            return false;
+            return WIMPS_ERROR_READ_FAILED;
+        }
+
+        if(readBytes == 0) {
+            return WIMPS_ERROR_EOF;
         }
 
         out += readBytes;
         bytes -= readBytes;
     }
 
-    return true;
+    return WIMPS_ERROR_NONE;
+}
+
+ErrorCode wimps_check_marker_char(int fd, char expected) {
+    char actual;
+    const ErrorCode error = wimps_read(fd, &actual, 1);
+    _Static_assert(sizeof(char) == 1, "Assumed sizeof(char) was 1...it's not");
+
+    if(error != WIMPS_ERROR_NONE) {
+        return error;
+    }
+
+    return actual == expected ? WIMPS_ERROR_NONE : WIMPS_ERROR_BAD_MARKER;
 }
 
 ErrorCode wimps_read_trace(const int fd, wimps_trace* const out) {
     if(out == NULL) {
         return WIMPS_ERROR_NULL_ARG;
     }
+
+    // we use realloc later...
+    // if this isn't null, one of the following has happened:
+    // (1) the caller just didn't zero the memory
+    // (2) the caller is reusing it
+    // we assume (1). (2) is a memory leak.
+    out->samples = NULL;
 
     if(fd == -1) {
         return WIMPS_ERROR_BAD_FILE;
@@ -59,9 +83,10 @@ ErrorCode wimps_read_trace(const int fd, wimps_trace* const out) {
         // TODO: this should probably go into a wimps_readline or something,
         //       or find some standard C function that takes an fd / convert it to FILE*
         while(true) {
-            // reading 1 byte at a time, like a proper tard
-            if(! wimps_read(fd, bufferNext, 1)) {
-                return WIMPS_ERROR_READ_FAILED;
+            const ErrorCode error = wimps_read(fd, bufferNext, 1);
+
+            if(error != WIMPS_ERROR_NONE) {
+                return error;
             }
 
             if(*bufferNext == '\n') {
@@ -77,7 +102,106 @@ ErrorCode wimps_read_trace(const int fd, wimps_trace* const out) {
         return WIMPS_ERROR_UNKNOWN_FORMAT;
     }
 
-    // TODO: read in samples
+    while(true) {
+        // get marker "a"
+        // it's ok to fail if it's EOF (i.e. no more samples)
+        {
+            const ErrorCode error = wimps_check_marker_char(fd, 'a');
+            if(error != WIMPS_ERROR_NONE) {
+                if(error == WIMPS_ERROR_EOF) {
+                    break;
+                }
+            }
+        }
+
+        // make room for one more sample
+        // it's incremented at the end when we know the sample is at least probably valid
+        // TODO: clean up memory on later failure
+        {
+            wimps_sample* newSamples = realloc(out->samples,
+                                               (out->sampleCount + 1) * sizeof(wimps_sample));
+
+            if(newSamples == NULL) {
+                return WIMPS_ERROR_REALLOC_FAILED;
+            }
+
+            out->samples = newSamples;
+        }
+
+        wimps_sample* const currentSample = &out->samples[out->sampleCount];
+        out->sampleCount += 1;
+
+        // get the time of sample
+        {
+           const ErrorCode error = wimps_read(fd,
+                                              &currentSample->time,
+                                              sizeof(currentSample->time));
+
+            if(error != WIMPS_ERROR_NONE) {
+                return error;
+            }
+        }
+
+        // get marker "b"
+        {
+            const ErrorCode error = wimps_check_marker_char(fd, 'b');
+            if(error != WIMPS_ERROR_NONE) {
+                return error;
+            }
+        }
+
+        // get the number of addresses
+        {
+            const ErrorCode error = wimps_read(fd,
+                                               &currentSample->addressCount,
+                                               sizeof(currentSample->addressCount));
+
+            if(error != WIMPS_ERROR_NONE) {
+                return error;
+            }
+        }
+
+        // make room for the addresses,
+        // TODO: clear up memory on later failure
+        {
+            void** const addresses = malloc(currentSample->addressCount * sizeof(void*));
+
+            if(addresses == NULL) {
+                return WIMPS_ERROR_MALLOC_FAILED;
+            }
+
+            currentSample->addresses = addresses;
+        }
+
+        // get marker "c"
+        {
+            const ErrorCode error = wimps_check_marker_char(fd, 'c');
+            if(error != WIMPS_ERROR_NONE) {
+                return error;
+            }
+        }
+
+        // get the addresses
+        {
+            for(size_t i = 0; i < currentSample->addressCount; ++i) {
+                const ErrorCode error = wimps_read(fd,
+                                                   &currentSample->addresses[i],
+                                                   sizeof(currentSample->addresses[i]));
+
+                if(error != WIMPS_ERROR_NONE) {
+                    return error;
+                }
+            }
+        }
+
+        // get marker "d"
+        {
+            const ErrorCode error = wimps_check_marker_char(fd, 'd');
+            if(error != WIMPS_ERROR_NONE) {
+                return error;
+            }
+        }
+    }
 
     return WIMPS_ERROR_NONE;
 }
@@ -95,7 +219,7 @@ int main(int argc, char** argv) {
     }
 
     wimps_trace trace;
-    ErrorCode error = wimps_read_trace(fd, &trace);
+    const ErrorCode error = wimps_read_trace(fd, &trace);
 
     if(error != WIMPS_ERROR_NONE) {
         const char* errorMessage = "Unknown error";
@@ -103,11 +227,30 @@ int main(int argc, char** argv) {
         switch(error) {
         case WIMPS_ERROR_READ_FAILED: errorMessage = "Read failed"; break;
         case WIMPS_ERROR_UNKNOWN_FORMAT: errorMessage = "Unknown format"; break;
-        default: break; // remove this to get all the errors :D
+        case WIMPS_ERROR_FORK_FAILED: errorMessage = "Fork failed"; break;
+        case WIMPS_ERROR_MALLOC_FAILED: errorMessage = "Malloc failed"; break;
+        case WIMPS_ERROR_REALLOC_FAILED: errorMessage = "Realloc failed"; break;
+        case WIMPS_ERROR_PTRACE_FAILED: errorMessage = "Ptrace failed"; break;
+        case WIMPS_ERROR_BAD_MARKER: errorMessage = "Bad marker"; break;
+        case WIMPS_ERROR_EXEC_FAILED: errorMessage = "Exec failed"; break;
+        case WIMPS_ERROR_GETCWD_FAILED: errorMessage = "Getcwd failed"; break;
+        case WIMPS_ERROR_SIGNAL_FAILED: errorMessage = "Signal failed"; break;
+        case WIMPS_ERROR_TIMER_CREATE_FAILED: errorMessage = "Timer create failed"; break;
+        case WIMPS_ERROR_TIMER_SET_TIME_FAILED: errorMessage = "Timer set time failed"; break;
+        case WIMPS_ERROR_NO_ARGS: errorMessage = "No args"; break;
+        case WIMPS_ERROR_CREATE_TRACE_FILE_FAILED: errorMessage = "Create trace file failed"; break;
+        case WIMPS_ERROR_BAD_FILE: errorMessage = "Bad file"; break;
+        case WIMPS_ERROR_ASSUMPTION_FAILED: errorMessage = "Assumption failed"; break;
+        case WIMPS_ERROR_EOF: errorMessage = "EOF"; break;
+        case WIMPS_ERROR_NULL_ARG: errorMessage = "Null arg"; break;
+        case WIMPS_ERROR_NONE: errorMessage = "None"; break;
         }
         fprintf(stderr, "%s\n", errorMessage);
+    } else {
+        printf("Yay!\n");
     }
 
     close(fd);
+    return error;
 }
 

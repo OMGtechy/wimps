@@ -36,7 +36,7 @@ typedef struct _wimps_timespec {
 
 typedef struct _wimps_sample {
     wimps_timespec time;
-    void* addresses;
+    void** addresses;
     size_t addressCount;
 } wimps_sample;
 

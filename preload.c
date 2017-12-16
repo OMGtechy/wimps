@@ -84,10 +84,13 @@ void wimps_sigprof_handler() {
     // backtrace is safe to call from a signal hander, but loading libgcc (where it lives) isn't.
     // To get around this, we force the library to load in wimps_setup, which runs before this.
     const int addressCount = backtrace(&trace[0], size);
-    const size_t addressesSize = addressCount * elementSize;
+    const size_t addressesSize = (size_t)addressCount;
 
     // if this isn't the case, some kind of header will be needed
+    _Static_assert(sizeof(void*) == (64 / 8), "Unexpected sizeof(void*)");
+    _Static_assert(sizeof(addressCount) == (32 / 8), "Unexpected sizeof(int)");
     _Static_assert(sizeof(addressesSize) == (64 / 8), "Unexpected sizeof(size_t)");
+
 
     wimps_timespec currentTime = { 0, 0 };
 
@@ -105,7 +108,7 @@ void wimps_sigprof_handler() {
           && wimps_write(wimps_trace_fd, "b", 1)
           && wimps_write(wimps_trace_fd, &addressesSize, sizeof(addressesSize))
           && wimps_write(wimps_trace_fd, "c", 1)
-          && wimps_write(wimps_trace_fd, trace, addressesSize)
+          && wimps_write(wimps_trace_fd, trace, addressCount * elementSize)
           && wimps_write(wimps_trace_fd, "d", 1))) {
         const char* const failedWriteMessage = "WIMPS | ERR | Could not write to trace file";
         wimps_write(STDERR_FILENO, failedWriteMessage, strlen(failedWriteMessage));
