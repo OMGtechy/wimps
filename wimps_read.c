@@ -222,30 +222,7 @@ int main(int argc, char** argv) {
     const ErrorCode error = wimps_read_trace(fd, &trace);
 
     if(error != WIMPS_ERROR_NONE) {
-        const char* errorMessage = "Unknown error";
-        // TODO: this should go in error_code or something
-        switch(error) {
-        case WIMPS_ERROR_READ_FAILED: errorMessage = "Read failed"; break;
-        case WIMPS_ERROR_UNKNOWN_FORMAT: errorMessage = "Unknown format"; break;
-        case WIMPS_ERROR_FORK_FAILED: errorMessage = "Fork failed"; break;
-        case WIMPS_ERROR_MALLOC_FAILED: errorMessage = "Malloc failed"; break;
-        case WIMPS_ERROR_REALLOC_FAILED: errorMessage = "Realloc failed"; break;
-        case WIMPS_ERROR_PTRACE_FAILED: errorMessage = "Ptrace failed"; break;
-        case WIMPS_ERROR_BAD_MARKER: errorMessage = "Bad marker"; break;
-        case WIMPS_ERROR_EXEC_FAILED: errorMessage = "Exec failed"; break;
-        case WIMPS_ERROR_GETCWD_FAILED: errorMessage = "Getcwd failed"; break;
-        case WIMPS_ERROR_SIGNAL_FAILED: errorMessage = "Signal failed"; break;
-        case WIMPS_ERROR_TIMER_CREATE_FAILED: errorMessage = "Timer create failed"; break;
-        case WIMPS_ERROR_TIMER_SET_TIME_FAILED: errorMessage = "Timer set time failed"; break;
-        case WIMPS_ERROR_NO_ARGS: errorMessage = "No args"; break;
-        case WIMPS_ERROR_CREATE_TRACE_FILE_FAILED: errorMessage = "Create trace file failed"; break;
-        case WIMPS_ERROR_BAD_FILE: errorMessage = "Bad file"; break;
-        case WIMPS_ERROR_ASSUMPTION_FAILED: errorMessage = "Assumption failed"; break;
-        case WIMPS_ERROR_EOF: errorMessage = "EOF"; break;
-        case WIMPS_ERROR_NULL_ARG: errorMessage = "Null arg"; break;
-        case WIMPS_ERROR_NONE: errorMessage = "None"; break;
-        }
-        fprintf(stderr, "%s\n", errorMessage);
+        fprintf(stderr, "%s\n", wimps_error_string(error));
     } else {
         printf("Yay!\n");
     }

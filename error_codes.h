@@ -39,3 +39,30 @@ typedef enum _ErrorCode {
     WIMPS_ERROR_REALLOC_FAILED
 } ErrorCode;
 
+const char* wimps_error_string(const ErrorCode error) {
+    switch(error) {
+    case WIMPS_ERROR_READ_FAILED:              return "Read failed";
+    case WIMPS_ERROR_UNKNOWN_FORMAT:           return "Unknown format";
+    case WIMPS_ERROR_FORK_FAILED:              return "Fork failed";
+    case WIMPS_ERROR_MALLOC_FAILED:            return "Malloc failed";
+    case WIMPS_ERROR_REALLOC_FAILED:           return "Realloc failed";
+    case WIMPS_ERROR_PTRACE_FAILED:            return "Ptrace failed";
+    case WIMPS_ERROR_BAD_MARKER:               return "Bad marker";
+    case WIMPS_ERROR_EXEC_FAILED:              return "Exec failed";
+    case WIMPS_ERROR_GETCWD_FAILED:            return "Getcwd failed";
+    case WIMPS_ERROR_SIGNAL_FAILED:            return "Signal failed";
+    case WIMPS_ERROR_TIMER_CREATE_FAILED:      return "Timer create failed";
+    case WIMPS_ERROR_TIMER_SET_TIME_FAILED:    return "Timer set time failed";
+    case WIMPS_ERROR_NO_ARGS:                  return "No args";
+    case WIMPS_ERROR_CREATE_TRACE_FILE_FAILED: return "Create trace file failed";
+    case WIMPS_ERROR_BAD_FILE:                 return "Bad file";
+    case WIMPS_ERROR_ASSUMPTION_FAILED:        return "Assumption failed";
+    case WIMPS_ERROR_EOF:                      return "EOF";
+    case WIMPS_ERROR_NULL_ARG:                 return "Null arg";
+    case WIMPS_ERROR_NONE:                     return "None";
+    }
+
+    // should never get here...
+    return "Unknown";
+}
+
