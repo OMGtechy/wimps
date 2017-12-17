@@ -1,12 +1,12 @@
 all: wimps-trace wimps-read libpreload.so
 
-wimps-trace: wimps_trace.c
+wimps-trace: wimps_trace.c error_codes.h
 	gcc -g -std=gnu99 -fPIC wimps_trace.c -o wimps-trace -Wall -Werror
 
-libpreload.so: preload.c
+libpreload.so: preload.c wimps_read.h error_codes.h
 	gcc -g -std=gnu99 -shared -fPIC preload.c -o libpreload.so -Wall -Werror -lrt
 
-wimps-read: wimps_read.c wimps_read.h
+wimps-read: wimps_read.c wimps_read.h error_codes.h
 	gcc -g -std=gnu99 -fPIC wimps_read.c -o wimps-read -Wall -Werror
 
 clean:
