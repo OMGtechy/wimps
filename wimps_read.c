@@ -237,6 +237,7 @@ int main(int argc, char** argv) {
 
     if(error != WIMPS_ERROR_NONE) {
         fprintf(stderr, "%s\n", wimps_error_string(error));
+        fprintf(stderr, "File position %jd\n", lseek(fd, 0, SEEK_CUR));
     } else {
         for(size_t i = 0; i < trace.sampleCount; ++i) {
             printf("Sample %zu\n", i);
