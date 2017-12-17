@@ -179,9 +179,6 @@ ErrorCode wimps_read_trace(const int fd, wimps_trace* const out) {
                 char strbuffer[1000] = { '\0' };
                 const ErrorCode error = wimps_readline(fd, strbuffer, sizeof(strbuffer) - 1);
 
-                // chop off the newline character
-                strbuffer[strlen(strbuffer) - 1] = '\0';
-
                 if(error != WIMPS_ERROR_NONE) {
                     return error;
                 }
@@ -189,6 +186,9 @@ ErrorCode wimps_read_trace(const int fd, wimps_trace* const out) {
                 if(strncmp(wimps_end_sample_marker, strbuffer, wimps_end_sample_marker_strlen) == 0) {
                     break;
                 }
+
+                // chop off the newline character
+                strbuffer[strlen(strbuffer) - 1] = '\0';
 
                 const char** symbols = realloc(currentSample->symbols, sizeof(char*) * (i + 1));
 
