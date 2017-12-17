@@ -31,7 +31,6 @@ extern char** environ;
 
 pid_t child_pid;
 void sigint_handler() {
-    printf("WIMPS | INF | Recieved signal %d (%s), forwarding to child process\n", SIGINT, strsignal(SIGINT));
     kill(child_pid, SIGINT);
 }
 
@@ -42,23 +41,17 @@ ErrorCode parent(pid_t child) {
     while(1) {
         int status;
         waitpid(child, &status, 0); 
-        printf("WIMPS | INF | Child process status changed\n");
 
         if(WIFEXITED(status)) {
-            printf("WIMPS | INF | Child process exited normally\n");
             return WIMPS_ERROR_NONE;
         }
 
         if(WIFSIGNALED(status)) {
-            int signalNumber = WTERMSIG(status);
-            printf("WIMPS | INF | Child process killed by signal %d (%s)\n", signalNumber, strsignal(signalNumber));
             return WIMPS_ERROR_NONE;
         }
 
         if(WIFSTOPPED(status)) {
             int signalNumber = WSTOPSIG(status);
-            printf("WIMPS | INF | Child process stopped by signal %d (%s)\n", signalNumber, strsignal(signalNumber));
-
             int signalToSend;
 
             switch(signalNumber) {
@@ -71,11 +64,6 @@ ErrorCode parent(pid_t child) {
                 break;
             }
 
-            if(signalToSend != 0) {
-                printf("WIMPS | INF | Forwarding signal to child process\n");
-            }
-
-            printf("WIMPS | INF | Continuing child process\n");
             if(ptrace(PTRACE_CONT, child, 0, signalToSend) == -1) {
                 fprintf(stderr, "WIMPS | ERR | Failed to continue child process\n");
                 return WIMPS_ERROR_PTRACE_FAILED;
