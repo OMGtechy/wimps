@@ -36,8 +36,8 @@ typedef struct _wimps_timespec {
 
 typedef struct _wimps_sample {
     wimps_timespec time;
-    void** addresses;
-    size_t addressCount;
+    const char** symbols;
+    size_t symbolCount;
 } wimps_sample;
 
 typedef struct _wimps_trace {
@@ -47,4 +47,7 @@ typedef struct _wimps_trace {
 
 const char wimps_trace_marker_v1[] = "_wimps_trace_v1";
 const size_t wimps_trace_marker_v1_strlen = sizeof(wimps_trace_marker_v1) / sizeof(wimps_trace_marker_v1[0]) - 1 /* null terminator */;
+
+const char wimps_end_sample_marker[] = "wimps_end_sample";
+const size_t wimps_end_sample_marker_strlen = sizeof(wimps_end_sample_marker) / sizeof(wimps_end_sample_marker[0]) - 1;
 

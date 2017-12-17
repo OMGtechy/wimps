@@ -76,22 +76,7 @@ void wimps_sigprof_handler() {
         return;
     }
 
-    void* trace[1000] = { NULL };
-    const size_t elementSize = sizeof(trace[0]);
-    const size_t size = sizeof(trace) / elementSize;
-
-    // According to http://man7.org/linux/man-pages/man3/backtrace.3.html,
-    // backtrace is safe to call from a signal hander, but loading libgcc (where it lives) isn't.
-    // To get around this, we force the library to load in wimps_setup, which runs before this.
-    const int addressCount = backtrace(&trace[0], size);
-    const size_t addressesSize = (size_t)addressCount;
-
-    // if this isn't the case, some kind of header will be needed
-    _Static_assert(sizeof(void*) == (64 / 8), "Unexpected sizeof(void*)");
-    _Static_assert(sizeof(addressCount) == (32 / 8), "Unexpected sizeof(int)");
-    _Static_assert(sizeof(addressesSize) == (64 / 8), "Unexpected sizeof(size_t)");
-
-
+    const char* const failedWriteMessage = "WIMPS | ERR | Could not write to trace file";
     wimps_timespec currentTime = { 0, 0 };
 
     if(wimps_get_timespec(&currentTime) == -1) {
@@ -105,23 +90,35 @@ void wimps_sigprof_handler() {
     // byte should be after the addresses size, for example.
     if(! (   wimps_write(wimps_trace_fd, "a", 1)
           && wimps_write(wimps_trace_fd, &currentTime, sizeof(currentTime))
-          && wimps_write(wimps_trace_fd, "b", 1)
-          && wimps_write(wimps_trace_fd, &addressesSize, sizeof(addressesSize))
-          && wimps_write(wimps_trace_fd, "c", 1)
-          && wimps_write(wimps_trace_fd, trace, addressCount * elementSize)
-          && wimps_write(wimps_trace_fd, "d", 1))) {
-        const char* const failedWriteMessage = "WIMPS | ERR | Could not write to trace file";
-        wimps_write(STDERR_FILENO, failedWriteMessage, strlen(failedWriteMessage));
-        goto wimps_sigprof_exit_handler;
+          && wimps_write(wimps_trace_fd, "b", 1))) {
+        goto wimps_trace_write_failed;
+    }
+
+    void* trace[1000] = { NULL };
+    const size_t size = sizeof(trace) / sizeof(trace[0]);
+
+    // According to http://man7.org/linux/man-pages/man3/backtrace.3.html,
+    // backtrace and backtrace_symbols_fd is safe to call from a signal hander, but loading libgcc isn't.
+    // To get around this, we force the library to load in wimps_setup, which runs before this.
+    backtrace_symbols_fd(trace, backtrace(trace, size), wimps_trace_fd);
+    if(! (   wimps_write(wimps_trace_fd, wimps_end_sample_marker, wimps_end_sample_marker_strlen)
+          && wimps_write(wimps_trace_fd, "c", 1))) {
+        goto wimps_trace_write_failed;
     }
 
 wimps_sigprof_exit_handler:
     atomic_flag_clear(&wimps_sigprof_active);
+    return;
+
+wimps_trace_write_failed:
+    wimps_write(STDERR_FILENO, failedWriteMessage, strlen(failedWriteMessage));
+    goto wimps_sigprof_exit_handler;
 }
 
 void wimps_force_libgcc_load() {
     void* dummy;
     backtrace(&dummy, 1);
+    backtrace_symbols_fd(&dummy, 1, -1);
 }
 
 bool wimps_set_signal_handler(void (*handler)()) {

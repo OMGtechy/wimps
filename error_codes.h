@@ -36,7 +36,8 @@ typedef enum _ErrorCode {
     WIMPS_ERROR_UNKNOWN_FORMAT,
     WIMPS_ERROR_EOF,
     WIMPS_ERROR_BAD_MARKER,
-    WIMPS_ERROR_REALLOC_FAILED
+    WIMPS_ERROR_REALLOC_FAILED,
+    WIMPS_ERROR_STRNDUP_FAILED
 } ErrorCode;
 
 const char* wimps_error_string(const ErrorCode error) {
@@ -59,6 +60,7 @@ const char* wimps_error_string(const ErrorCode error) {
     case WIMPS_ERROR_ASSUMPTION_FAILED:        return "Assumption failed";
     case WIMPS_ERROR_EOF:                      return "EOF";
     case WIMPS_ERROR_NULL_ARG:                 return "Null arg";
+    case WIMPS_ERROR_STRNDUP_FAILED:           return "Strndup failed";
     case WIMPS_ERROR_NONE:                     return "None";
     }
 

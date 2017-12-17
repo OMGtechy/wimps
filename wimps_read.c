@@ -57,6 +57,28 @@ ErrorCode wimps_check_marker_char(int fd, char expected) {
     return actual == expected ? WIMPS_ERROR_NONE : WIMPS_ERROR_BAD_MARKER;
 }
 
+ErrorCode wimps_readline(int fd, char* buffer, const size_t bufferSize) {
+    char* bufferNext = buffer;
+    size_t bufferSizeLeft = bufferSize;
+
+    while(true) {
+        const ErrorCode error = wimps_read(fd, bufferNext, 1);
+
+        if(error != WIMPS_ERROR_NONE) {
+            return error;
+        }
+
+        if(*bufferNext == '\n') {
+            break;
+        }
+
+        bufferNext += 1;
+        bufferSizeLeft -= 1;
+    }
+
+    return WIMPS_ERROR_NONE;
+}
+
 ErrorCode wimps_read_trace(const int fd, wimps_trace* const out) {
     if(out == NULL) {
         return WIMPS_ERROR_NULL_ARG;
@@ -68,6 +90,7 @@ ErrorCode wimps_read_trace(const int fd, wimps_trace* const out) {
     // (2) the caller is reusing it
     // we assume (1). (2) is a memory leak.
     out->samples = NULL;
+    out->sampleCount = 0;
 
     if(fd == -1) {
         return WIMPS_ERROR_BAD_FILE;
@@ -150,53 +173,44 @@ ErrorCode wimps_read_trace(const int fd, wimps_trace* const out) {
             }
         }
 
-        // get the number of addresses
+        // get the symbols
         {
-            const ErrorCode error = wimps_read(fd,
-                                               &currentSample->addressCount,
-                                               sizeof(currentSample->addressCount));
+            for(size_t i = 0;; ++i) {
+                char strbuffer[1000] = { '\0' };
+                const ErrorCode error = wimps_readline(fd, strbuffer, sizeof(strbuffer) - 1);
 
-            if(error != WIMPS_ERROR_NONE) {
-                return error;
+                // chop off the newline character
+                strbuffer[strlen(strbuffer) - 1] = '\0';
+
+                if(error != WIMPS_ERROR_NONE) {
+                    return error;
+                }
+
+                if(strncmp(wimps_end_sample_marker, strbuffer, wimps_end_sample_marker_strlen) == 0) {
+                    break;
+                }
+
+                const char** symbols = realloc(currentSample->symbols, sizeof(char*) * (i + 1));
+
+                if(symbols == NULL) {
+                    return WIMPS_ERROR_REALLOC_FAILED;
+                }
+
+                const char* const symbol = strndup(strbuffer, sizeof(strbuffer));
+
+                if(symbol == NULL) {
+                    return WIMPS_ERROR_STRNDUP_FAILED;
+                }
+
+                currentSample->symbols = symbols;
+                currentSample->symbols[i] = symbol;
+                currentSample->symbolCount += 1;
             }
-        }
-
-        // make room for the addresses,
-        // TODO: clear up memory on later failure
-        {
-            void** const addresses = malloc(currentSample->addressCount * sizeof(void*));
-
-            if(addresses == NULL) {
-                return WIMPS_ERROR_MALLOC_FAILED;
-            }
-
-            currentSample->addresses = addresses;
         }
 
         // get marker "c"
         {
             const ErrorCode error = wimps_check_marker_char(fd, 'c');
-            if(error != WIMPS_ERROR_NONE) {
-                return error;
-            }
-        }
-
-        // get the addresses
-        {
-            for(size_t i = 0; i < currentSample->addressCount; ++i) {
-                const ErrorCode error = wimps_read(fd,
-                                                   &currentSample->addresses[i],
-                                                   sizeof(currentSample->addresses[i]));
-
-                if(error != WIMPS_ERROR_NONE) {
-                    return error;
-                }
-            }
-        }
-
-        // get marker "d"
-        {
-            const ErrorCode error = wimps_check_marker_char(fd, 'd');
             if(error != WIMPS_ERROR_NONE) {
                 return error;
             }
@@ -224,8 +238,15 @@ int main(int argc, char** argv) {
     if(error != WIMPS_ERROR_NONE) {
         fprintf(stderr, "%s\n", wimps_error_string(error));
     } else {
-        printf("Yay!\n");
+        for(size_t i = 0; i < trace.sampleCount; ++i) {
+            printf("Sample %zu\n", i);
+            for(size_t j = 0; j < trace.samples[i].symbolCount; ++j) {
+                printf("\t%s\n", trace.samples[i].symbols[j]);
+            }
+        }
     }
+
+    // TODO: free trace memory? doesn't matter much for now since the program closes after
 
     close(fd);
     return error;
