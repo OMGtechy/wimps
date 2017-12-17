@@ -136,8 +136,8 @@ bool wimps_create_timer(timer_t* const outTimer) {
 bool wimps_start_timer(timer_t timer) {
     struct itimerspec timerSpec;
 
-    timerSpec.it_interval.tv_sec = 1;
-    timerSpec.it_interval.tv_nsec = 0;
+    timerSpec.it_interval.tv_sec = 0;
+    timerSpec.it_interval.tv_nsec = 200000000;
     timerSpec.it_value = timerSpec.it_interval;
 
     return timer_settime(timer, 0, &timerSpec, NULL) == 0;
